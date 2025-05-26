@@ -1,0 +1,177 @@
+<!DOCTYPE html> 
+<html lang="pt">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Acme Corporation</title>
+        <!-- Adicionado CSP para mitigar ataques XSS -->
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+        <style>
+            body { font-family: Arial, sans-serif; }
+            .error { color: red; font-size: 0.8em; }
+        </style>
+    </head>
+    <body>
+        <h2>Formulário Seguro</h2>
+        <form id="cadastro">
+            <label for="nome">Nome:</label>
+            <input id="nome" name="nome" required maxlength="100">
+            <span id="nome-error" class="error"></span>
+            <br><br>
+            
+            <label for="email">E-mail:</label>
+            <input id="email" name="email" type="email" required>
+            <span id="email-error" class="error"></span>
+            <br><br>
+            
+            <label for="telefone">Telefone:</label>
+            <input id="telefone" name="telefone" pattern="[0-9]{10,11}" title="Apenas números, com DDD (10 ou 11 dígitos)">
+            <span id="telefone-error" class="error"></span>
+            <br><br>
+            
+            <button type="submit">Salvar!</button>
+        </form>
+
+        <script>
+            // Correção 1: Sanitização de entrada para prevenir XSS
+            // Vulnerabilidade: Cross-Site Scripting (XSS)
+            function sanitizeInput(input) {
+                if (!input) return '';
+                return input.toString()
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            // Correção 2: Validação robusta dos dados
+            // Vulnerabilidade: Insufficient Input Validation
+            function validateForm(nome, email, telefone) {
+                let isValid = true;
+                
+                if (!nome || nome.trim().length < 3) {
+                    document.getElementById('nome-error').textContent = 'Nome inválido (mínimo 3 caracteres)';
+                    isValid = false;
+                }
+                
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    document.getElementById('email-error').textContent = 'E-mail inválido';
+                    isValid = false;
+                }
+                
+                if (telefone && !/^[0-9]{10,11}$/.test(telefone)) {
+                    document.getElementById('telefone-error').textContent = 'Telefone inválido (10 ou 11 dígitos)';
+                    isValid = false;
+                }
+                
+                return isValid;
+            }
+
+            // Correção 3: Limitação de armazenamento e sanitização de saída
+            // Vulnerabilidade: Data Storage Issues
+            function manageLocalStorage(nome, email, telefone) {
+                let dados = localStorage.getItem("cadastro_local") ? 
+                    JSON.parse(localStorage.getItem("cadastro_local")) : [];
+                
+                // Limita a quantidade de registros armazenados (máx 50)
+                if (dados.length >= 50) {
+                    dados.shift(); // Remove o registro mais antigo
+                }
+                
+                dados.push({
+                    nome: sanitizeInput(nome),
+                    email: sanitizeInput(email),
+                    telefone: sanitizeInput(telefone)
+                });
+                
+                localStorage.setItem("cadastro_local", JSON.stringify(dados));
+                return dados;
+            }
+
+            document.getElementById("cadastro").addEventListener("submit", function(event) {
+                event.preventDefault();
+
+                let nome = document.getElementById("nome").value;
+                let email = document.getElementById("email").value;
+                let telefone = document.getElementById("telefone").value;
+
+                // Limpa mensagens de erro anteriores
+                document.querySelectorAll('.error').forEach(el => el.textContent = '');
+
+                if (!validateForm(nome, email, telefone)) {
+                    return;
+                }
+
+                let dados = manageLocalStorage(nome, email, telefone);
+                let novaAba = window.open();
+                novaAba.document.write(novaPagina);
+                novaAba.document.close();
+            });
+        </script>
+    
+    <!--<h2>Formulario Seguro (ou não)</h2>
+    <form id="cadastro">
+        <label for="nome">Nome:</label>
+        <input id="nome" name="nome">
+        <br><br>
+        <label for="email">E-mail:</label>
+        <input id="email" name="email">
+        <br><br>
+        <label for="telefone">Telefone:</label>
+        <input id="telefone" name="telefone">
+        <br><br>
+        <button type="submit">Salvar!</button>
+    </form>
+
+    <script>
+        document.getElementById("cadastro").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            let nome = document.getElementById("nome").value;
+            let email = document.getElementById("email").value;
+            let telefone = document.getElementById("telefone").value;
+
+            let dados = localStorage.getItem("cadastro_local") ? JSON.parse(localStorage.getItem("cadastro_local")) : [];
+            dados.push({ nome, email, telefone }); 
+            localStorage.setItem("cadastro_local", JSON.stringify(dados)); 
+
+            let novaPagina = `
+                <!DOCTYPE html>
+                <html lang="pt">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Dados Cadastrados</title>
+                    <style> 
+                        body { font-family: Arial, sans-serif; padding: 20px; } 
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    </style>
+                </head>
+                <body>
+                    <h2>Dados Cadastrados</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>E-mail</th>
+                                <th>Telefone</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${dados.map(d => `<tr><td>${d.nome}</td><td>${d.email}</td><td>${d.telefone}</td></tr>`).join("")}
+                        </tbody>
+                    </table>
+                </body>
+                </html>
+            `; 
+
+            let novaAba = window.open();
+            novaAba.document.write(novaPagina);
+            novaAba.document.close();
+        });
+    </script> -->
+    </body>
+</html>
